@@ -28,7 +28,7 @@ apt-get install -yq ca-certificates git build-essential supervisor
 
 # Install nodejs
 mkdir /opt/nodejs
-curl https://nodejs.org/dist/v8.12.0/node-v8.12.0-linux-x64.tar.gz | tar xvzf - -C /opt/nodejs --strip-components=1
+curl https://nodejs.org/dist/v12.16.0/node-v12.16.0-linux-x64.tar.gz | tar xvzf - -C /opt/nodejs --strip-components=1
 ln -s /opt/nodejs/bin/node /usr/bin/node
 ln -s /opt/nodejs/bin/npm /usr/bin/npm
 
@@ -36,10 +36,10 @@ ln -s /opt/nodejs/bin/npm /usr/bin/npm
 # git requires $HOME and it's not set during the startup script.
 export HOME=/root
 git config --global credential.helper gcloud.sh
-git clone https://github.com/webmagic123/publish-new-transaction.git /opt/app/new-repo
+git clone https://github.com/webmagic123/publish-new-transaction.git /opt/app/publish-new-transaction
 
 # Install app dependencies
-cd /opt/app/new-repo
+cd /opt/app/publish-new-transaction
 npm install
 
 # Create a nodeapp user. The application will run as this user.
@@ -49,7 +49,7 @@ chown -R nodeapp:nodeapp /opt/app
 # Configure supervisor to run the node app.
 cat >/etc/supervisor/conf.d/node-app.conf << EOF
 [program:nodeapp]
-directory=/opt/app/new-repo
+directory=/opt/app/publish-new-transaction
 command=npm start
 autostart=true
 autorestart=true
