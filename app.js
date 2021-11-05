@@ -14,6 +14,7 @@
 
 'use strict';
 
+const WebSocket = require('ws');
 const express = require('express');
 const { PubSub } = require('@google-cloud/pubsub');
 const app = express();
@@ -24,6 +25,7 @@ app.get('/', (req, res) => {
 
 // Start the server
 const TOPIC_NAME = 'new_transfer';
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '0uOGCRgiQKThWcxY0Pc14chod0zl79fH';
 const PORT = process.env.PORT || 8080;
 const pubsub = new PubSub();
 let i = 0;
@@ -31,21 +33,7 @@ let i = 0;
 const refresh = async () => {
     console.log('----' + i);
     console.log('----' + (new Date()));
-    const topic = pubsub.topic(TOPIC_NAME);
 
-    const messageObject = {
-        data: {
-            message: i,
-        },
-    };
-    const messageBuffer = Buffer.from(JSON.stringify(messageObject), 'utf8');
-
-    // Publishes a message
-    try {
-        await topic.publish(messageBuffer);
-    } catch (err) {
-        console.error(err);
-    }
     i++;
     setTimeout(refresh, 10000);
 }
@@ -53,9 +41,50 @@ const refresh = async () => {
 app.listen(PORT, async () => {
   console.log(`App listening on port ${PORT}`);
   console.log('Press Ctrl+C to quit.');
-  refresh();
+  // refresh();
+});
 
-  
+const wss = new WebSocket(`wss://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`);
+
+wss.on('open', () => {
+    /* wss.send(JSON.stringify({
+        jsonrpc: "2.0",
+        method: "eth_unsubscribe",
+        id: 1,
+        params: ["0xbbc2f4ae6b2017e742712b7e2f5b5d99"],
+    })) */
+
+    wss.send(JSON.stringify({
+        jsonrpc: "2.0",
+        method: "eth_subscribe",
+        params: ["newHeads"],
+        id: 1
+    }));
+});
+
+wss.on('message', async (data) => {
+    const resultString = data.toString();
+    const result = JSON.parse(resultString);
+    const blockNum = result && result.params && result.params.result.number;
+    console.log('block number - ' + blockNum);
+
+    if (blockNum) {
+        const topic = pubsub.topic(TOPIC_NAME);
+
+        const messageObject = {
+            data: {
+                message: blockNum,
+            },
+        };
+        const messageBuffer = Buffer.from(JSON.stringify(messageObject), 'utf8');
+
+        // Publishes a message
+        try {
+            await topic.publish(messageBuffer);
+        } catch (err) {
+            console.error(err);
+        }
+    }
 });
 
 module.exports = app;
