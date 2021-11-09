@@ -19,10 +19,6 @@ const express = require('express');
 const { PubSub } = require('@google-cloud/pubsub');
 const app = express();
 
-app.get('/', (req, res) => {
-  res.status(200).send('Hello, world!').end();
-});
-
 // Start the server
 const TOPIC_NAME = 'new_transfer';
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '0uOGCRgiQKThWcxY0Pc14chod0zl79fH';
@@ -31,20 +27,25 @@ const pubsub = new PubSub();
 let i = 0;
 
 const refresh = async () => {
-    console.log('----' + i);
-    console.log('----' + (new Date()));
-
     i++;
-    setTimeout(refresh, 10000);
+    setTimeout(refresh, 360000);
 }
 
 app.listen(PORT, async () => {
   console.log(`App listening on port ${PORT}`);
   console.log('Press Ctrl+C to quit.');
-  // refresh();
+  refresh();
 });
 
 const wss = new WebSocket(`wss://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`);
+
+app.get('/', (req, res) => {
+    console.log('index ---');
+    console.log(i);
+    console.log('wss object ---');
+    console.log(wss);
+    res.status(200).send('Hello, world!').end();
+});
 
 wss.on('open', () => {
     /* wss.send(JSON.stringify({
@@ -66,9 +67,9 @@ wss.on('message', async (data) => {
     const resultString = data.toString();
     const result = JSON.parse(resultString);
     const blockNum = result && result.params && result.params.result.number;
-    console.log('block number - ' + blockNum);
 
     if (blockNum) {
+        console.log('block number - ' + blockNum);
         const topic = pubsub.topic(TOPIC_NAME);
 
         const messageObject = {
@@ -84,7 +85,20 @@ wss.on('message', async (data) => {
         } catch (err) {
             console.error(err);
         }
+    } else {
+        console.log('--- raw result ---' + resultString);
     }
+});
+
+wss.on('close', () => {
+    console.log('connection closed ---');
+
+    wss.send(JSON.stringify({
+        jsonrpc: "2.0",
+        method: "eth_subscribe",
+        params: ["newHeads"],
+        id: 1
+    }));
 });
 
 module.exports = app;
