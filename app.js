@@ -15,6 +15,7 @@
 'use strict';
 
 const WebSocket = require('ws');
+const ReconnectingWebSocket = require('reconnecting-websocket');
 const express = require('express');
 const { PubSub } = require('@google-cloud/pubsub');
 const app = express();
@@ -24,36 +25,30 @@ const TOPIC_NAME = 'new_transfer';
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '0uOGCRgiQKThWcxY0Pc14chod0zl79fH';
 const PORT = process.env.PORT || 8080;
 const pubsub = new PubSub();
-let i = 0;
-
-const refresh = async () => {
-    i++;
-    setTimeout(refresh, 360000);
-}
 
 app.listen(PORT, async () => {
   console.log(`App listening on port ${PORT}`);
   console.log('Press Ctrl+C to quit.');
-  refresh();
 });
 
-const wss = new WebSocket(`wss://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`);
-
 app.get('/', (req, res) => {
-    console.log('index ---');
-    console.log(i);
-    console.log('wss object ---');
-    console.log(wss);
     res.status(200).send('Hello, world!').end();
 });
 
-wss.on('open', () => {
+const wss = new ReconnectingWebSocket(`wss://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`, null, {
+    debug: true,
+    reconnectInterval: 3000,
+    WebSocket: WebSocket,
+});
+
+wss.onopen = function () {
     /* wss.send(JSON.stringify({
         jsonrpc: "2.0",
         method: "eth_unsubscribe",
         id: 1,
         params: ["0xbbc2f4ae6b2017e742712b7e2f5b5d99"],
     })) */
+    console.log('socket connected ---');
 
     wss.send(JSON.stringify({
         jsonrpc: "2.0",
@@ -61,10 +56,10 @@ wss.on('open', () => {
         params: ["newHeads"],
         id: 1
     }));
-});
+};
 
-wss.on('message', async (data) => {
-    const resultString = data.toString();
+wss.onmessage = async function (data) {
+    const resultString = data.data.toString();
     const result = JSON.parse(resultString);
     const blockNum = result && result.params && result.params.result.number;
 
@@ -88,17 +83,19 @@ wss.on('message', async (data) => {
     } else {
         console.log('--- raw result ---' + resultString);
     }
-});
+};
 
-wss.on('close', () => {
+wss.onclose = function () {
     console.log('connection closed ---');
+};
 
-    wss.send(JSON.stringify({
-        jsonrpc: "2.0",
-        method: "eth_subscribe",
-        params: ["newHeads"],
-        id: 1
-    }));
-});
+wss.onerror = function (error) {
+    console.log('error ---');
+    console.log(JSON.stringify(error));
+};
+
+wss.onconnecting = function () {
+    console.log('connectiong ---');
+};
 
 module.exports = app;
